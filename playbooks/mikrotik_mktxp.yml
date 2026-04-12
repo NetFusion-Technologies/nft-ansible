@@ -1,0 +1,10 @@
+---
+- name: Create MKTXP group and user on MikroTik devices
+  hosts: network_switches
+  gather_facts: false
+  collections:
+    - community.routeros
+    - netfusion.routeros
+
+  roles:
+    - role: mikrotik_mktxp_user

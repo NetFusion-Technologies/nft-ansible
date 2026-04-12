@@ -1,0 +1,10 @@
+\---
+- name: Install and configure MKTXP on nft-monitor
+  hosts: nft-monitor
+  become: true
+  gather_facts: true
+  collections:
+    - netfusion.routeros
+
+  roles:
+    - role: mktxp_exporter

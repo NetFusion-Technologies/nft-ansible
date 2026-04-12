@@ -1,0 +1,12 @@
+---
+- name: Deploy Prometheus
+  hosts: prometheus
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.monitoring
+
+  roles:
+    - prometheus_server
+

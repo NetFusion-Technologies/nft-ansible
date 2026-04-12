@@ -1,0 +1,78 @@
+---
+mktxp_user: mktxp
+mktxp_group: mktxp
+
+mktxp_home: /opt/mktxp
+mktxp_venv: /opt/mktxp/venv
+
+mktxp_conf_dir: /etc/mktxp
+mktxp_conf_file: /etc/mktxp/mktxp.conf
+
+mktxp_listen_host: 0.0.0.0
+mktxp_listen_port: 49090
+
+# Inventory group to render into mktxp.conf
+mktxp_router_group: network_switches
+
+# Only include hosts where this inventory var matches
+mktxp_device_type_match: mikrotik
+
+# Shared RouterOS credentials for exporter login
+mktxp_router_username: mktxp
+mktxp_router_password: "{{ vault_mktxp_password }}"
+mktxp_router_port: 8728
+
+# RouterOS API connection defaults
+mktxp_use_ssl: false
+mktxp_no_ssl_certificate: false
+mktxp_ssl_certificate_verify: false
+mktxp_ssl_check_hostname: true
+mktxp_plaintext_login: true
+
+# Default labels applied unless overridden per host
+mktxp_custom_labels_default: "environment:prod,exporter:mktxp"
+
+# Lightweight switch-oriented defaults
+mktxp_metrics:
+  health: true
+  installed_packages: false
+  dhcp: false
+  dhcp_lease: false
+  connections: false
+  connection_stats: false
+  interface: true
+  wireguard_peers: false
+  bridge_vlan: false
+  route: true
+  pool: false
+  firewall: false
+  neighbor: true
+  dns: false
+  ipv6_route: false
+  ipv6_pool: false
+  ipv6_firewall: false
+  ipv6_neighbor: false
+  poe: true
+  monitor: true
+  netwatch: false
+  public_ip: true
+  wireless: false
+  wireless_clients: false
+  capsman: false
+  capsman_clients: false
+  w60g: false
+  eoip: false
+  gre: false
+  ipip: false
+  lte: false
+  ipsec: false
+  switch_port: true
+  kid_control_assigned: false
+  kid_control_dynamic: false
+  user: true
+  queue: false
+  bfd: false
+  bgp: false
+  routing_stats: false
+  certificate: false
+  container: false

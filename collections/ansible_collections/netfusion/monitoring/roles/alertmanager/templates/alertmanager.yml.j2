@@ -1,0 +1,23 @@
+global:
+  resolve_timeout: {{ alertmanager_resolve_timeout }}
+  smtp_smarthost: '{{ alertmanager_smtp_smarthost }}'
+  smtp_from: '{{ alertmanager_email_from }}'
+  smtp_auth_username: '{{ alertmanager_smtp_auth_username }}'
+  smtp_auth_password: "{{ alertmanager_smtp_auth_password }}"
+  smtp_require_tls: {{ alertmanager_smtp_require_tls | lower }}
+
+route:
+  receiver: {{ alertmanager_default_receiver }}
+  group_by:
+{% for item in alertmanager_route_group_by %}
+    - {{ item }}
+{% endfor %}
+  group_wait: {{ alertmanager_route_group_wait }}
+  group_interval: {{ alertmanager_route_group_interval }}
+  repeat_interval: {{ alertmanager_route_repeat_interval }}
+
+receivers:
+  - name: {{ alertmanager_default_receiver }}
+    email_configs:
+      - to: '{{ alertmanager_email_to }}'
+        send_resolved: true

@@ -1,0 +1,40 @@
+---
+- name: Set FQDN suffix to .netfusiontechnologies.com
+  hosts: managed_linux:!bluestar
+  become: true
+  gather_facts: true
+
+  vars:
+    hostname_skip_hosts:
+      - iRedMail
+
+  tasks:
+    - name: Skip explicitly excluded hosts
+      ansible.builtin.meta: end_host
+      when: inventory_hostname in hostname_skip_hosts
+
+    - name: Skip non-Debian systems
+      ansible.builtin.meta: end_host
+      when: ansible_os_family in ["Debian", "Archlinux"]
+
+    - name: Derive short hostname
+      ansible.builtin.set_fact:
+        short_hostname: "{{ ansible_hostname.split('.')[0] }}"
+        new_fqdn: "{{ ansible_hostname.split('.')[0] }}.netfusiontechnologies.com"
+
+    - name: Set system hostname
+      ansible.builtin.hostname:
+        name: "{{ new_fqdn }}"
+        use: systemd
+
+    - name: Ensure /etc/hosts has 127.0.1.1 FQDN mapping
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s+'
+        line: "127.0.1.1 {{ new_fqdn }} {{ short_hostname }}"
+        create: true
+
+    - name: Show resulting hostname
+      ansible.builtin.command: hostnamectl --static
+      changed_when: false
+

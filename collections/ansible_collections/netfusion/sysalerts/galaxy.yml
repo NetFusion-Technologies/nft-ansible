@@ -1,0 +1,19 @@
+namespace: netfusion
+name: sysalerts
+version: 1.0.0
+readme: README.md
+authors:
+  - Alex Lynn
+description: NetFusion sysalerts mail relay and hostname standardization collection
+license:
+  - MIT
+tags:
+  - postfix
+  - mail
+  - monitoring
+  - sysalerts
+dependencies: {}
+repository: ""
+documentation: ""
+homepage: ""
+issues: ""

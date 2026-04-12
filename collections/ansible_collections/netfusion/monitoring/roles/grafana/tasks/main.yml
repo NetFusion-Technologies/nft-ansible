@@ -1,0 +1,95 @@
+- name: Stop on non-Debian hosts
+  ansible.builtin.meta: end_host
+  when: ansible_os_family != "Debian"
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name:
+      - grafana
+    state: present
+    update_cache: true
+
+- name: Ensure dashboard directory exists
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_dir }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0755"
+
+- name: Ensure datasource provisioning directory exists
+  ansible.builtin.file:
+    path: "{{ grafana_provisioning_dir }}/datasources"
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0755"
+
+- name: Ensure dashboard provisioning directory exists
+  ansible.builtin.file:
+    path: "{{ grafana_provisioning_dir }}/dashboards"
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0755"
+
+- name: Deploy Grafana config
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: "{{ grafana_config_dir }}/grafana.ini"
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+
+- name: Deploy Prometheus datasource provisioning
+  ansible.builtin.template:
+    src: datasource_prometheus.yml.j2
+    dest: "{{ grafana_provisioning_dir }}/datasources/prometheus.yml"
+    owner: root
+    group: grafana
+    mode: "0644"
+  notify: restart grafana
+
+- name: Deploy dashboard provider provisioning
+  ansible.builtin.copy:
+    src: dashboards_provider.yml
+    dest: "{{ grafana_provisioning_dir }}/dashboards/netfusion.yml"
+    owner: root
+    group: grafana
+    mode: "0644"
+  notify: restart grafana
+
+- name: Deploy starter infrastructure dashboard
+  ansible.builtin.copy:
+    src: dashboard_infrastructure_overview.json
+    dest: "{{ grafana_dashboards_dir }}/infrastructure-overview.json"
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: restart grafana
+
+- name: Ensure Grafana service enabled and started
+  ansible.builtin.service:
+    name: grafana-server
+    state: started
+    enabled: true
+
+- name: Deploy Proxmox overview dashboard
+  ansible.builtin.copy:
+    src: dashboard_proxmox_overview.json
+    dest: "{{ grafana_dashboards_dir }}/proxmox-overview.json"
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: restart grafana
+
+- name: Deploy host health dashboard
+  ansible.builtin.copy:
+    src: dashboard_host_health.json
+    dest: "{{ grafana_dashboards_dir }}/host-health.json"
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: restart grafana
+

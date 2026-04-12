@@ -1,0 +1,11 @@
+---
+- name: Deploy Grafana
+  hosts: grafana
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.monitoring
+
+  roles:
+    - grafana

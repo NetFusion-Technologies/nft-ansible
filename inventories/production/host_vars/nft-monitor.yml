@@ -1,0 +1,11 @@
+ansible_connection: local
+ansible_python_interpreter: /usr/bin/python3
+ansible_become: true
+ansible_become_method: sudo
+
+mktxp_router_group: network_switches
+mktxp_router_username: mktxp
+mktxp_router_password: "{{ vault_mktxp_password }}"
+mktxp_listen_host: 0.0.0.0
+mktxp_listen_port: 49090
+mktxp_custom_labels_default: "environment:prod,exporter:mktxp"

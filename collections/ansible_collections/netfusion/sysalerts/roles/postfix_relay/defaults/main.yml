@@ -1,0 +1,31 @@
+sysalerts_smtp_server: mail.netfusiontechnologies.com
+sysalerts_smtp_port: "587"
+sysalerts_smtp_user: sysalerts@netfusiontechnologies.com
+sysalerts_smtp_pass: ""
+sysalerts_alias_target: sysalerts@netfusiontechnologies.com
+
+sysalerts_send_test: true
+sysalerts_skip_hosts:
+  - iRedMail
+
+sysalerts_enable_recipient_rewrite: true
+sysalerts_enable_subject_tagging: true
+
+sysalerts_hostname_tag: "{{ ansible_hostname }}"
+sysalerts_test_subject: "sysalerts relay test"
+
+sysalerts_postfix_map_type: hash
+sysalerts_mail_client_package: mailutils
+sysalerts_required_packages_debian:
+  - postfix
+  - postfix-pcre
+  - mailutils
+  - libsasl2-modules
+  - ca-certificates
+
+sysalerts_required_packages_arch:
+  - postfix
+  - mailutils
+  - cyrus-sasl
+  - ca-certificates
+

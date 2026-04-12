@@ -1,0 +1,18 @@
+namespace: netfusion
+name: routeros
+version: 1.0.0
+readme: README.md
+authors:
+  - Alex Lynn
+description: NetFusion RouterOS and MKTXP automation collection
+license:
+  - MIT
+tags:
+  - routeros
+  - mikrotik
+  - monitoring
+dependencies: {}
+repository: ""
+documentation: ""
+homepage: ""
+issues: ""

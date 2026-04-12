@@ -1,0 +1,12 @@
+---
+- name: Deploy Prometheus Proxmox exporter
+  hosts: proxmox_nodes
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.monitoring
+
+  roles:
+    - prometheus_pve_exporter
+

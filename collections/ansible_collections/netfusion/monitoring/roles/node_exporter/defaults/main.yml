@@ -1,0 +1,5 @@
+node_exporter_package_name_debian: prometheus-node-exporter
+node_exporter_service_name_debian: prometheus-node-exporter
+
+node_exporter_package_name_arch: prometheus-node-exporter
+node_exporter_service_name_arch: prometheus-node-exporter

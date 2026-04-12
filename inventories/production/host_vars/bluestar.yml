@@ -1,0 +1,9 @@
+ansible_host: 192.168.52.101
+ansible_user: ansible
+
+sysalerts_enabled: true
+sysalerts_os_family: arch
+sysalerts_postfix_map_type: lmdb
+sysalerts_hostname_tag: bluestar
+sysalerts_skip_relayhost: false
+

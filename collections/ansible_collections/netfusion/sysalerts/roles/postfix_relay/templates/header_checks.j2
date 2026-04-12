@@ -1,0 +1,8 @@
+/^Subject:\s*(CRON.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][CRON] $1
+/^Subject:\s*(smartd.*|SMART.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][SMART] $1
+/^Subject:\s*(mdadm.*|MDADM.*|DegradedArray.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][RAID] $1
+/^Subject:\s*(logwatch.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][LOGWATCH] $1
+/^Subject:\s*(unattended-upgrades.*|APT.*|apt-listchanges.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][PKG] $1
+/^Subject:\s*(Monit.*|monit alert.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][MONIT] $1
+/^Subject:\s*(.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][SYS] $1
+

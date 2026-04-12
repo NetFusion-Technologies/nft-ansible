@@ -1,0 +1,146 @@
+- name: Skip explicitly excluded hosts
+  ansible.builtin.meta: end_host
+  when: inventory_hostname in sysalerts_skip_hosts
+
+- name: Set OS-specific defaults for Debian
+  ansible.builtin.set_fact:
+    sysalerts_postfix_map_type: "{{ sysalerts_postfix_map_type | default('hash') }}"
+    sysalerts_mail_client_package: "{{ sysalerts_mail_client_package | default('mailutils') }}"
+    sysalerts_required_packages: "{{ sysalerts_required_packages_debian }}"
+  when: ansible_os_family == "Debian"
+
+- name: Set OS-specific defaults for Archlinux
+  ansible.builtin.set_fact:
+    sysalerts_postfix_map_type: "{{ sysalerts_postfix_map_type | default('lmdb') }}"
+    sysalerts_mail_client_package: "{{ sysalerts_mail_client_package | default('mailutils') }}"
+    sysalerts_required_packages: "{{ sysalerts_required_packages_arch }}"
+  when: ansible_os_family == "Archlinux"
+
+- name: Skip unsupported operating systems
+  ansible.builtin.meta: end_host
+  when: ansible_os_family not in ["Debian", "Archlinux"]
+
+- name: Ensure SMTP password is set
+  ansible.builtin.assert:
+    that:
+      - sysalerts_smtp_pass | length > 0
+    fail_msg: "sysalerts_smtp_pass is empty; set it in encrypted vars."
+
+- name: Install required packages on Debian
+  ansible.builtin.apt:
+    name: "{{ sysalerts_required_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Install required packages on Archlinux
+  community.general.pacman:
+    name: "{{ sysalerts_required_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Archlinux"
+
+- name: Configure Postfix relay settings
+  ansible.builtin.shell: |
+    postconf -e "{{ item }}"
+  loop:
+    - "inet_interfaces = loopback-only"
+    - "mydestination = $myhostname, localhost.$mydomain, localhost"
+    - "relayhost = [{{ sysalerts_smtp_server }}]:{{ sysalerts_smtp_port }}"
+    - "smtp_sasl_auth_enable = yes"
+    - "smtp_sasl_password_maps = {{ sysalerts_postfix_map_type }}:/etc/postfix/sasl_passwd"
+    - "smtp_sasl_security_options = noanonymous"
+    - "smtp_sasl_tls_security_options = noanonymous"
+    - "smtp_tls_security_level = encrypt"
+    - "smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  notify: restart postfix
+
+- name: Enable recipient canonical maps
+  ansible.builtin.shell: |
+    postconf -e "recipient_canonical_maps = regexp:/etc/postfix/recipient_canonical"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  when: sysalerts_enable_recipient_rewrite
+  notify: restart postfix
+
+- name: Enable header checks
+  ansible.builtin.shell: |
+    postconf -e "header_checks = pcre:/etc/postfix/header_checks"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  when: sysalerts_enable_subject_tagging
+  notify: restart postfix
+
+- name: Write SASL password file
+  ansible.builtin.template:
+    src: sasl_passwd.j2
+    dest: /etc/postfix/sasl_passwd
+    owner: root
+    group: root
+    mode: "0600"
+  notify:
+    - rebuild sasl map
+    - restart postfix
+
+- name: Write sender canonical map
+  ansible.builtin.template:
+    src: sender_canonical.j2
+    dest: /etc/postfix/sender_canonical
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - rebuild sender canonical map
+    - restart postfix
+
+- name: Write recipient canonical map
+  ansible.builtin.template:
+    src: recipient_canonical.j2
+    dest: /etc/postfix/recipient_canonical
+    owner: root
+    group: root
+    mode: "0644"
+  when: sysalerts_enable_recipient_rewrite
+  notify: restart postfix
+
+- name: Write header checks
+  ansible.builtin.template:
+    src: header_checks.j2
+    dest: /etc/postfix/header_checks
+    owner: root
+    group: root
+    mode: "0644"
+  when: sysalerts_enable_subject_tagging
+  notify: restart postfix
+
+- name: Configure root alias
+  ansible.builtin.lineinfile:
+    path: /etc/aliases
+    regexp: '^root:'
+    line: "root: {{ sysalerts_alias_target }}"
+    create: true
+  notify:
+    - run newaliases
+    - restart postfix
+
+- name: Validate postfix config
+  ansible.builtin.command: postfix check
+  changed_when: false
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Send test message
+  ansible.builtin.shell: |
+    echo "Test from {{ ansible_fqdn | default(ansible_hostname) }} at $(date)" | \
+    mail -s "{{ sysalerts_test_subject }}" root
+  args:
+    executable: /bin/bash
+  when: sysalerts_send_test | bool
+  changed_when: true
+

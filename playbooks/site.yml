@@ -1,0 +1,6 @@
+---
+- import_playbook: sysalerts.yml
+- import_playbook: monitoring_node_exporter.yml
+- import_playbook: monitoring_prometheus.yml
+- import_playbook: monitoring_alertmanager.yml
+- import_playbook: monitoring_grafana.yml

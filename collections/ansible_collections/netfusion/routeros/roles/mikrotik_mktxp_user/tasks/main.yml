@@ -1,0 +1,73 @@
+---
+- name: Ensure monitoring group exists
+  community.routeros.api:
+    path: user/group
+    add:
+      name: "{{ mktxp_group_name }}"
+      policy: "{{ mktxp_group_policy }}"
+  register: mktxp_group_add
+  failed_when:
+    - mktxp_group_add.failed | default(false)
+    - "'already have such name' not in (mktxp_group_add.msg | default(''))"
+
+- name: Ensure monitoring group policy is correct
+  community.routeros.api_find_and_modify:
+    path: user/group
+    find:
+      name: "{{ mktxp_group_name }}"
+    values:
+      policy: "{{ mktxp_group_policy }}"
+
+- name: Ensure monitoring user exists without address restriction
+  community.routeros.api:
+    path: user
+    add:
+      name: "{{ mktxp_user_name }}"
+      password: "{{ mktxp_user_password }}"
+      group: "{{ mktxp_group_name }}"
+  register: mktxp_user_add_no_addr
+  when: mktxp_user_allowed_address | length == 0
+  failed_when:
+    - mktxp_user_add_no_addr.failed | default(false)
+    - "'already have such name' not in (mktxp_user_add_no_addr.msg | default(''))"
+
+- name: Ensure monitoring user exists with address restriction
+  community.routeros.api:
+    path: user
+    add:
+      name: "{{ mktxp_user_name }}"
+      password: "{{ mktxp_user_password }}"
+      group: "{{ mktxp_group_name }}"
+      address: "{{ mktxp_user_allowed_address }}"
+  register: mktxp_user_add_with_addr
+  when: mktxp_user_allowed_address | length > 0
+  failed_when:
+    - mktxp_user_add_with_addr.failed | default(false)
+    - "'already have such name' not in (mktxp_user_add_with_addr.msg | default(''))"
+
+- name: Ensure monitoring user group and password are correct
+  community.routeros.api_find_and_modify:
+    path: user
+    find:
+      name: "{{ mktxp_user_name }}"
+    values:
+      group: "{{ mktxp_group_name }}"
+      password: "{{ mktxp_user_password }}"
+
+- name: Ensure monitoring user address restriction is correct
+  community.routeros.api_find_and_modify:
+    path: user
+    find:
+      name: "{{ mktxp_user_name }}"
+    values:
+      address: "{{ mktxp_user_allowed_address }}"
+  when: mktxp_user_allowed_address | length > 0
+
+- name: Ensure RouterOS API service is enabled on the right port
+  community.routeros.api_find_and_modify:
+    path: ip/service
+    find:
+      name: "{{ mktxp_api_service }}"
+    values:
+      disabled: false
+      port: "{{ mktxp_api_port }}"

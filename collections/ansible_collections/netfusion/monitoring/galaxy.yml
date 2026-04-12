@@ -1,0 +1,19 @@
+namespace: netfusion
+name: monitoring
+version: 1.0.0
+readme: README.md
+authors:
+  - Alex Lynn
+description: NetFusion monitoring stack collection for Prometheus, Alertmanager, Grafana, and exporters
+license:
+  - MIT
+tags:
+  - monitoring
+  - prometheus
+  - grafana
+  - alertmanager
+dependencies: {}
+repository: ""
+documentation: ""
+homepage: ""
+issues: ""

@@ -1,0 +1,89 @@
+---
+- name: Ensure required OS packages are installed
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+    state: present
+
+- name: Create MKTXP group
+  ansible.builtin.group:
+    name: "{{ mktxp_group }}"
+    system: true
+    state: present
+
+- name: Create MKTXP user
+  ansible.builtin.user:
+    name: "{{ mktxp_user }}"
+    group: "{{ mktxp_group }}"
+    home: "{{ mktxp_home }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: true
+    state: present
+
+- name: Create MKTXP directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ mktxp_user }}"
+    group: "{{ mktxp_group }}"
+    mode: "0750"
+  loop:
+    - "{{ mktxp_home }}"
+    - "{{ mktxp_conf_dir }}"
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ mktxp_venv }}
+    creates: "{{ mktxp_venv }}/bin/python3"
+
+- name: Install MKTXP into virtualenv
+  ansible.builtin.pip:
+    name: mktxp
+    virtualenv: "{{ mktxp_venv }}"
+    state: present
+
+- name: Render MKTXP config
+  ansible.builtin.template:
+    src: mktxp.conf.j2
+    dest: "{{ mktxp_conf_file }}"
+    owner: "{{ mktxp_user }}"
+    group: "{{ mktxp_group }}"
+    mode: "0640"
+  notify: Restart mktxp
+
+- name: Install systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mktxp.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=MKTXP Prometheus exporter for MikroTik RouterOS
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User={{ mktxp_user }}
+      Group={{ mktxp_group }}
+      WorkingDirectory={{ mktxp_home }}
+      ExecStart={{ mktxp_venv }}/bin/mktxp export --config {{ mktxp_conf_file }}
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Reload systemd
+    - Restart mktxp
+
+- name: Enable and start MKTXP
+  ansible.builtin.systemd:
+    name: mktxp
+    enabled: true
+    state: started
+    daemon_reload: true

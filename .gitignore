@@ -1,0 +1,32 @@
+# Ansible
+*.retry
+.ansible/
+
+# Generated / archived data
+archive/
+backups/
+logs/
+
+# Vault password file
+.vault_pass.txt
+
+# Downloaded collections
+*.tar.gz
+
+# Python / misc
+__pycache__/
+*.pyc
+
+# Secrets
+*.pem
+*.key
+*.p12
+*.csr
+
+# Editors
+.vscode/
+.idea/
+*~
+
+# Virtualenv
+.venv-ansible/

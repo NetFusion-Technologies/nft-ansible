@@ -1,0 +1,11 @@
+---
+- name: Deploy node_exporter
+  hosts: managed_linux
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.monitoring
+
+  roles:
+    - node_exporter

@@ -1,0 +1,11 @@
+profile: production
+exclude_paths:
+  - archive/
+  - backups/
+  - collections/ansible_collections/*/*/playbooks/
+warn_list:
+  - yaml[line-length]
+skip_list:
+  - fqcn[action-core]
+  - name[casing]
+offline: true

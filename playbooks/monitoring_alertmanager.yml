@@ -1,0 +1,11 @@
+---
+- name: Deploy Alertmanager
+  hosts: prometheus-alertmanager
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.monitoring
+
+  roles:
+    - alertmanager

@@ -1,0 +1,24 @@
+alertmanager_user: prometheus
+alertmanager_group: prometheus
+alertmanager_config_dir: /etc/alertmanager
+alertmanager_data_dir: /var/lib/alertmanager
+alertmanager_web_listen_address: "{{ monitoring_alertmanager_bind }}"
+alertmanager_resolve_timeout: 5m
+
+alertmanager_route_group_by:
+  - alertname
+  - job
+  - instance
+  - severity
+
+alertmanager_route_group_wait: 30s
+alertmanager_route_group_interval: 5m
+alertmanager_route_repeat_interval: 4h
+
+alertmanager_email_to: "{{ monitoring_alert_email_to }}"
+alertmanager_email_from: "{{ monitoring_alert_email_from }}"
+alertmanager_smtp_smarthost: "{{ monitoring_alert_smtp_smarthost }}"
+alertmanager_smtp_require_tls: "{{ monitoring_alert_smtp_require_tls }}"
+alertmanager_smtp_auth_username: "{{ monitoring_alert_smtp_auth_username }}"
+alertmanager_smtp_auth_password: "{{ monitoring_alert_smtp_auth_password }}"
+alertmanager_default_receiver: email-sysalerts

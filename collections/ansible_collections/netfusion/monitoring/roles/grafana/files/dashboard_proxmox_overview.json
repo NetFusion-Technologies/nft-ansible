@@ -1,0 +1,207 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "title": "Host Health Overview",
+      "type": "dashboards",
+      "tags": ["netfusion", "hosts"],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "bargauge",
+      "title": "Proxmox Exporter Health",
+      "description": "One bar per Proxmox node, ordered nft-pve1 → nft-pve6.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve1\"}), \"ordered_name\", \"01 nft-pve1\", \"instance_name\", \".*\") or label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve2\"}), \"ordered_name\", \"02 nft-pve2\", \"instance_name\", \".*\") or label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve3\"}), \"ordered_name\", \"03 nft-pve3\", \"instance_name\", \".*\") or label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve3a\"}), \"ordered_name\", \"04 nft-pve3a\", \"instance_name\", \".*\") or label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve4\"}), \"ordered_name\", \"05 nft-pve4\", \"instance_name\", \".*\") or label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve5\"}), \"ordered_name\", \"06 nft-pve5\", \"instance_name\", \".*\") or label_replace(max(up{job=\"proxmox_pve_exporter\",instance_name=\"nft-pve6\"}), \"ordered_name\", \"07 nft-pve6\", \"instance_name\", \".*\")",
+          "legendFormat": "{{ordered_name}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "displayMode": "basic",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "DOWN", "color": "red" },
+                "1": { "text": "UP", "color": "green" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "links": [
+            {
+              "title": "Open Host Health",
+              "url": "/d/host-health-overview/host-health-overview?var-host=${__field.labels.instance_name}&from=${__from}&to=${__to}"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Running QEMU Guests",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "count(pve_up{job=\"proxmox_pve_cluster\", id=~\"qemu/.*\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "type": "stat",
+      "title": "Running LXC Guests",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "count(pve_up{job=\"proxmox_pve_cluster\", id=~\"lxc/.*\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "type": "stat",
+      "title": "Online Nodes",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "count(pve_up{job=\"proxmox_pve_cluster\", id=~\"node/.*\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "type": "stat",
+      "title": "Offline Guests",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "count(pve_up{job=\"proxmox_pve_cluster\", id=~\"(qemu|lxc)/.*\"} == 0)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "type": "state-timeline",
+      "title": "Cluster / Node / Guest Status",
+      "description": "Use variable proxmox_scope to reduce noise. Much taller on purpose.",
+      "gridPos": { "h": 20, "w": 24, "x": 0, "y": 13 },
+      "targets": [
+        {
+          "expr": "pve_up{job=\"proxmox_pve_cluster\", id=~\"$proxmox_scope\"}",
+          "legendFormat": "{{id}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "rowHeight": 0.95,
+        "pageSize": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "OFFLINE", "color": "red" },
+                "1": { "text": "ONLINE", "color": "green" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "links": [
+            {
+              "title": "Open Host Health",
+              "url": "/d/host-health-overview/host-health-overview?var-host=${__series.name}&from=${__from}&to=${__to}"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Backup-Related Metrics",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 33 },
+      "targets": [
+        {
+          "expr": "{job=\"proxmox_pve_cluster\", __name__=~\"pve_backup_.*\"}",
+          "legendFormat": "{{__name__}} {{id}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["netfusion", "proxmox"],
+  "templating": {
+    "list": [
+      {
+        "name": "proxmox_scope",
+        "type": "custom",
+        "label": "Cluster Scope",
+        "query": ".* : node/.* : qemu/.* : lxc/.*",
+        "current": { "text": ".*", "value": ".*" },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Proxmox Cluster Overview",
+  "uid": "proxmox-cluster-overview",
+  "version": 3
+}

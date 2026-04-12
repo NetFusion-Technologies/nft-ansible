@@ -1,0 +1,90 @@
+---
+- name: Bootstrap ansible user inside local guests from each Proxmox node
+  hosts: managed_linux
+  become: true
+  gather_facts: false
+
+  vars:
+    bootstrap_user: ansible
+    bootstrap_password: "{{ vault_bootstrap_password }}"
+
+  tasks:
+    - name: Copy bootstrap script to Proxmox node
+      copy:
+        dest: /root/bootstrap-ansible-user.sh
+        mode: "0700"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          : "${ANSIBLE_BOOTSTRAP_PASSWORD:?Set ANSIBLE_BOOTSTRAP_PASSWORD in the environment}"
+
+          BOOTSTRAP_USER="${BOOTSTRAP_USER:-ansible}"
+          LOCAL_NODE="${LOCAL_NODE:-$(hostname -s)}"
+          SKIP_NAMES_REGEX="${SKIP_NAMES_REGEX:-^(MacOS|OPNsense|haos)$}"
+
+          bootstrap_linux_inside_guest() {
+            local runner="$1"
+            local vmid="$2"
+
+            local script='
+          set -e
+          USER_NAME="'"$BOOTSTRAP_USER"'"
+          USER_PASS="'"$ANSIBLE_BOOTSTRAP_PASSWORD"'"
+
+          if ! id -u "$USER_NAME" >/dev/null 2>&1; then
+            useradd -m -s /bin/bash "$USER_NAME" 2>/dev/null || adduser --disabled-password --gecos "" "$USER_NAME"
+          fi
+
+          echo "$USER_NAME:$USER_PASS" | chpasswd
+
+          if getent group sudo >/dev/null 2>&1; then
+            usermod -aG sudo "$USER_NAME" || true
+          elif getent group wheel >/dev/null 2>&1; then
+            usermod -aG wheel "$USER_NAME" || true
+          fi
+
+          mkdir -p /home/$USER_NAME/.ssh
+          chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.ssh
+          chmod 700 /home/$USER_NAME/.ssh
+          '
+
+            if [[ "$runner" == "pct" ]]; then
+              pct exec "$vmid" -- bash -lc "$script"
+            else
+              qm guest exec "$vmid" -- /bin/sh -lc "$script"
+            fi
+          }
+
+          echo "==> Bootstrapping guests on node: $LOCAL_NODE"
+
+          pvesh get "/nodes/${LOCAL_NODE}/lxc" --output-format json \
+          | jq -r '.[] | select(.status == "running") | [.vmid, .name] | @tsv' \
+          | while IFS=$'\t' read -r vmid name; do
+              [[ -z "${name:-}" ]] && name="lxc-${vmid}"
+              if [[ "$name" =~ $SKIP_NAMES_REGEX ]]; then
+                echo "SKIP LXC  $vmid $name"
+                continue
+              fi
+              echo "BOOT LXC  $vmid $name"
+              bootstrap_linux_inside_guest pct "$vmid" || echo "FAILED LXC $vmid $name"
+            done
+
+          pvesh get "/nodes/${LOCAL_NODE}/qemu" --output-format json \
+          | jq -r '.[] | select(.status == "running") | [.vmid, .name] | @tsv' \
+          | while IFS=$'\t' read -r vmid name; do
+              [[ -z "${name:-}" ]] && name="qemu-${vmid}"
+              if [[ "$name" =~ $SKIP_NAMES_REGEX ]]; then
+                echo "SKIP QEMU $vmid $name"
+                continue
+              fi
+              echo "BOOT QEMU $vmid $name"
+              bootstrap_linux_inside_guest qm "$vmid" || echo "FAILED QEMU $vmid $name (guest agent missing or non-Linux guest)"
+            done
+
+    - name: Run bootstrap script on each Proxmox node
+      command: /root/bootstrap-ansible-user.sh
+      environment:
+        ANSIBLE_BOOTSTRAP_PASSWORD: "{{ bootstrap_password }}"
+        BOOTSTRAP_USER: "{{ bootstrap_user }}"
+

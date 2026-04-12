@@ -1,0 +1,17 @@
+prometheus_user: prometheus
+prometheus_group: prometheus
+prometheus_config_dir: /etc/prometheus
+prometheus_rules_dir: /etc/prometheus/rules
+prometheus_data_dir: /var/lib/prometheus
+
+prometheus_web_listen_address: "{{ monitoring_prometheus_bind }}"
+prometheus_retention_time: "{{ monitoring_prometheus_retention_time }}"
+prometheus_retention_size: "{{ monitoring_prometheus_retention_size }}"
+
+prometheus_scrape_interval: "{{ monitoring_prometheus_scrape_interval }}"
+prometheus_evaluation_interval: "{{ monitoring_prometheus_evaluation_interval }}"
+
+prometheus_node_exporter_port: 9100
+prometheus_pve_exporter_port: 9221
+prometheus_netdata_port: 19999
+

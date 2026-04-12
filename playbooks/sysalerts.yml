@@ -1,0 +1,10 @@
+- name: Configure sysalerts relay on Linux hosts
+  hosts: managed_linux
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.sysalerts
+
+  roles:
+    - postfix_relay

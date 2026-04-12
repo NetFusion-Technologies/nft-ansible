@@ -1,0 +1,27 @@
+---
+- name: Push SSH key to ansible user on SSH-ready guests
+  hosts: managed_linux
+  gather_facts: false
+
+  vars:
+    ansible_user: ansible
+    ansible_password: "{{ vault_bootstrap_password }}"
+    ansible_become: true
+    ansible_become_method: sudo
+    ansible_become_password: "{{ vault_bootstrap_password }}"
+    ssh_public_key_path: "{{ lookup('env', 'HOME') + '/.ssh/ansible.pub' }}"
+
+  tasks:
+    - name: Ensure ansible user has authorized key
+      authorized_key:
+        user: ansible
+        state: present
+        key: "{{ lookup('file', ssh_public_key_path) }}"
+
+    - name: Ensure passwordless sudo for ansible
+      copy:
+        dest: /etc/sudoers.d/90-ansible
+        mode: "0440"
+        content: |
+          ansible ALL=(ALL) NOPASSWD:ALL
+

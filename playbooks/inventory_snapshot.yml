@@ -1,0 +1,41 @@
+---
+- name: Collect safe inventory snapshot for all managed hosts
+  hosts: all:!localhost
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Ensure collected host archive directory exists on control node
+      delegate_to: localhost
+      run_once: true
+      become: false
+      vars:
+        ansible_connection: local
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../archive/collected/hosts"
+        state: directory
+        mode: "0700"
+
+    - name: Save safe host facts to JSON on control node
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_connection: local
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../archive/collected/hosts/{{ inventory_hostname }}.json"
+        mode: "0600"
+        content: |
+          {{
+            {
+              "host": inventory_hostname,
+              "hostname": ansible_facts.hostname | default(""),
+              "fqdn": ansible_facts.fqdn | default(""),
+              "distribution": ansible_facts.distribution | default(""),
+              "distribution_version": ansible_facts.distribution_version | default(""),
+              "kernel": ansible_facts.kernel | default(""),
+              "architecture": ansible_facts.architecture | default(""),
+              "default_ipv4": ansible_facts.default_ipv4 | default({}),
+              "default_ipv6": ansible_facts.default_ipv6 | default({}),
+              "interfaces": ansible_facts.interfaces | default([])
+            } | to_nice_json
+          }}

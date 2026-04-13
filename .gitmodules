@@ -1,0 +1,3 @@
+[submodule "collections/ansible_collections/netfusion/sysalerts"]
+	path = collections/ansible_collections/netfusion/sysalerts
+	url = https://github.com/NetFusion-Technologies/ansible-collection-sysalerts.git

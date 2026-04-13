@@ -1,9 +1,0 @@
-/^[^@]+$/ {{ sysalerts_alias_target }}
-/^[^@]+@localhost(\..*)?$/ {{ sysalerts_alias_target }}
-/^[^@]+@[^.]+$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.local$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.localdomain$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.internal$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.netfusiontechnologies\.com$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.netfusiontechnologies\.xyz$/ {{ sysalerts_alias_target }}
-

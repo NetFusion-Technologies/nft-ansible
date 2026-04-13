@@ -11,7 +11,6 @@ username = {{ mktxp_router_username }}
 password = {{ mktxp_router_password }}
 credentials_file = ""
 
-custom_labels = {{ mktxp_custom_labels_default }}
 use_ssl = {{ mktxp_use_ssl }}
 no_ssl_certificate = {{ mktxp_no_ssl_certificate }}
 ssl_certificate_verify = {{ mktxp_ssl_certificate_verify }}
@@ -68,13 +67,13 @@ container = {{ mktxp_metrics.container }}
 {% if hostvars[host].device_type | default('') == mktxp_device_type_match %}
 [{{ host }}]
 hostname = {{ hostvars[host].mktxp_target | default(hostvars[host].ansible_host) }}
-{% if hostvars[host].mktxp_port is defined %}
-port = {{ hostvars[host].mktxp_port }}
-{% endif %}
 {% if hostvars[host].mktxp_extra_labels is defined %}
 custom_labels = {{ mktxp_custom_labels_default }},{{ hostvars[host].mktxp_extra_labels }}
-{% elif hostvars[host].mktxp_custom_labels is defined %}
-custom_labels = {{ hostvars[host].mktxp_custom_labels }}
+{% else %}
+custom_labels = {{ mktxp_custom_labels_default }}
+{% endif %}
+{% if hostvars[host].mktxp_port is defined %}
+port = {{ hostvars[host].mktxp_port }}
 {% endif %}
 {% if hostvars[host].mktxp_enabled is defined %}
 enabled = {{ hostvars[host].mktxp_enabled }}

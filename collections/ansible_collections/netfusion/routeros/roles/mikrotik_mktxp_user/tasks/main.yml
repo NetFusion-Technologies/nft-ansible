@@ -1,73 +1,187 @@
+
 ---
-- name: Ensure monitoring group exists
+- name: Query monitoring group
+  community.routeros.command:
+    commands:
+      - '/user/group/print where name="{{ mktxp_group_name }}"'
+  register: mktxp_group_query
+  changed_when: false
+  failed_when: false
+
+- name: Set fact for monitoring group existence
+  ansible.builtin.set_fact:
+    mktxp_group_exists: >-
+      {{
+        mktxp_group_name in (mktxp_group_query.stdout | default([]) | join(''))
+      }}
+
+- name: Create monitoring group when missing (RouterOS API)
   community.routeros.api:
-    path: user/group
-    add:
-      name: "{{ mktxp_group_name }}"
-      policy: "{{ mktxp_group_policy }}"
-  register: mktxp_group_add
-  failed_when:
-    - mktxp_group_add.failed | default(false)
-    - "'already have such name' not in (mktxp_group_add.msg | default(''))"
+    hostname: "{{ ansible_host }}"
+    username: "{{ ansible_user }}"
+    password: "{{ routeros_api_password }}"
+    path: user group
+    add: "name={{ mktxp_group_name }} policy={{ mktxp_group_policy }}"
+  when: not mktxp_group_exists
 
-- name: Ensure monitoring group policy is correct
-  community.routeros.api_find_and_modify:
-    path: user/group
-    find:
-      name: "{{ mktxp_group_name }}"
-    values:
-      policy: "{{ mktxp_group_policy }}"
+- name: Create monitoring group using inline RouterOS script
+  community.routeros.command:
+    commands:
+      - >
+        :if ([:len [/user/group/find where name={{ mktxp_group_name }}]] = 0) do={
+          /user/group/add name={{ mktxp_group_name }} policy={{ mktxp_group_policy }}
+        }
+  when: not mktxp_group_exists
 
-- name: Ensure monitoring user exists without address restriction
-  community.routeros.api:
-    path: user
-    add:
-      name: "{{ mktxp_user_name }}"
-      password: "{{ mktxp_user_password }}"
-      group: "{{ mktxp_group_name }}"
-  register: mktxp_user_add_no_addr
-  when: mktxp_user_allowed_address | length == 0
-  failed_when:
-    - mktxp_user_add_no_addr.failed | default(false)
-    - "'already have such name' not in (mktxp_user_add_no_addr.msg | default(''))"
+- name: Query monitoring group policy
+  community.routeros.command:
+    commands:
+      - '/user/group/print where name="{{ mktxp_group_name }}"'
+  register: mktxp_group_policy_query
+  changed_when: false
+  failed_when: false
 
-- name: Ensure monitoring user exists with address restriction
-  community.routeros.api:
-    path: user
-    add:
-      name: "{{ mktxp_user_name }}"
-      password: "{{ mktxp_user_password }}"
-      group: "{{ mktxp_group_name }}"
-      address: "{{ mktxp_user_allowed_address }}"
-  register: mktxp_user_add_with_addr
-  when: mktxp_user_allowed_address | length > 0
-  failed_when:
-    - mktxp_user_add_with_addr.failed | default(false)
-    - "'already have such name' not in (mktxp_user_add_with_addr.msg | default(''))"
+- name: Set fact for monitoring group policy correctness
+  ansible.builtin.set_fact:
+    mktxp_group_policy_ok: >-
+      {{
+        mktxp_group_policy in (mktxp_group_policy_query.stdout | default([]) | join(''))
+      }}
 
-- name: Ensure monitoring user group and password are correct
-  community.routeros.api_find_and_modify:
-    path: user
-    find:
-      name: "{{ mktxp_user_name }}"
-    values:
-      group: "{{ mktxp_group_name }}"
-      password: "{{ mktxp_user_password }}"
+- name: Update monitoring group policy when needed
+  community.routeros.command:
+    commands:
+      - '/user/group/set [find where name="{{ mktxp_group_name }}"] policy={{ mktxp_group_policy }}'
+  when:
+    - mktxp_group_exists
+    - not mktxp_group_policy_ok
 
-- name: Ensure monitoring user address restriction is correct
-  community.routeros.api_find_and_modify:
-    path: user
-    find:
-      name: "{{ mktxp_user_name }}"
-    values:
-      address: "{{ mktxp_user_allowed_address }}"
-  when: mktxp_user_allowed_address | length > 0
+- name: Query monitoring user
+  community.routeros.command:
+    commands:
+      - '/user/print where name="{{ mktxp_user_name }}"'
+  register: mktxp_user_query
+  changed_when: false
+  failed_when: false
 
-- name: Ensure RouterOS API service is enabled on the right port
-  community.routeros.api_find_and_modify:
-    path: ip/service
-    find:
-      name: "{{ mktxp_api_service }}"
-    values:
-      disabled: false
-      port: "{{ mktxp_api_port }}"
+- name: Set fact for monitoring user existence
+  ansible.builtin.set_fact:
+    mktxp_user_exists: >-
+      {{
+        mktxp_user_name in (mktxp_user_query.stdout | default([]) | join(''))
+      }}
+
+- name: Create monitoring user without address restriction when missing
+  community.routeros.command:
+    commands:
+      - '/user/add name="{{ mktxp_user_name }}" password="{{ mktxp_user_password }}" group="{{ mktxp_group_name }}"'
+  when:
+    - not mktxp_user_exists
+    - (mktxp_user_allowed_address | length) == 0
+
+- name: Create monitoring user with address restriction when missing
+  community.routeros.command:
+    commands:
+      - '/user/add name={{ mktxp_user_name }} password={{ mktxp_user_password }} group={{ mktxp_group_name }} address={{ mktxp_user_allowed_address }}'
+  when:
+    - not mktxp_user_exists
+    - (mktxp_user_allowed_address | length) > 0
+
+- name: Query monitoring user group
+  community.routeros.command:
+    commands:
+      - '/user/print where name="{{ mktxp_user_name }}"'
+  register: mktxp_user_group_query
+  changed_when: false
+  failed_when: false
+
+- name: Set fact for monitoring user group correctness
+  ansible.builtin.set_fact:
+    mktxp_user_group_ok: >-
+      {{
+        mktxp_group_name in (mktxp_user_group_query.stdout | default([]) | join(''))
+      }}
+
+- name: Query monitoring user address
+  community.routeros.command:
+    commands:
+      - '/user/print where name="{{ mktxp_user_name }}"'
+  register: mktxp_user_address_query
+  changed_when: false
+  failed_when: false
+
+- name: Set fact for monitoring user address correctness
+  ansible.builtin.set_fact:
+    mktxp_user_address_ok: >-
+      {{
+        (mktxp_user_allowed_address | trim) in (mktxp_user_address_query.stdout | default([]) | join(''))
+        if (mktxp_user_allowed_address | length) > 0
+        else true
+      }}
+
+- name: Ensure monitoring user properties are correct with address restriction
+  community.routeros.command:
+    commands:
+      - '/user/set [find where name="{{ mktxp_user_name }}"] group="{{ mktxp_group_name }}" password="{{ mktxp_user_password }}" address="{{ mktxp_user_allowed_address }}"'
+  when:
+    - mktxp_user_exists
+    - (mktxp_user_allowed_address | length) > 0
+    - (not mktxp_user_group_ok or not mktxp_user_address_ok)
+
+- name: Ensure monitoring user properties are correct without address restriction
+  community.routeros.command:
+    commands:
+      - '/user/set [find where name="{{ mktxp_user_name }}"] group="{{ mktxp_group_name }}" password="{{ mktxp_user_password }}" address=""'
+  when:
+    - mktxp_user_exists
+    - (mktxp_user_allowed_address | length) == 0
+    - not mktxp_user_group_ok
+
+- name: Query API service port
+  community.routeros.command:
+    commands:
+      - '/ip/service/print where name="{{ mktxp_api_service }}"'
+  register: mktxp_api_port_query
+  changed_when: false
+  failed_when: false
+
+- name: Set fact for API service port correctness
+  ansible.builtin.set_fact:
+    mktxp_api_port_ok: >-
+      {{
+        (mktxp_api_port | string) in (mktxp_api_port_query.stdout | default([]) | join(''))
+      }}
+
+- name: Enable RouterOS API service on correct port when needed
+  community.routeros.command:
+    commands:
+      - '/ip/service/set [find where name="{{ mktxp_api_service }}"] disabled=no port={{ mktxp_api_port }}'
+  when: not mktxp_api_port_ok
+
+- name: Re-query monitoring group after changes
+  community.routeros.command:
+    commands:
+      - '/user/group/print where name="{{ mktxp_group_name }}"'
+  register: mktxp_group_verify
+  changed_when: false
+  failed_when: false
+
+- name: Re-query monitoring user after changes
+  community.routeros.command:
+    commands:
+      - '/user/print where name="{{ mktxp_user_name }}"'
+  register: mktxp_user_verify
+  changed_when: false
+  failed_when: false
+
+- name: Assert monitoring group exists
+  ansible.builtin.assert:
+    that:
+      - mktxp_group_name in (mktxp_group_verify.stdout | default([]) | join(''))
+    fail_msg: "Monitoring group {{ mktxp_group_name }} was not created successfully."
+
+- name: Assert monitoring user exists
+  ansible.builtin.assert:
+    that:
+      - mktxp_user_name in (mktxp_user_verify.stdout | default([]) | join(''))
+    fail_msg: "Monitoring user {{ mktxp_user_name }} was not created successfully."

@@ -1,0 +1,8 @@
+extends: default
+ignore: |
+  archive/
+  backups/
+rules:
+  line-length:
+    max: 160
+    level: warning

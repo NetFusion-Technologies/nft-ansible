@@ -1,6 +1,0 @@
-default:
-  user: {{ pve_exporter_api_user.split('!')[0] | to_json }}
-  token_name: {{ pve_exporter_api_user.split('!')[1] | to_json }}
-  token_value: {{ pve_exporter_api_token_secret | to_json }}
-  verify_ssl: false
-

@@ -4,3 +4,6 @@
 [submodule "collections/ansible_collections/netfusion/monitoring"]
 	path = collections/ansible_collections/netfusion/monitoring
 	url = https://github.com/NetFusion-Technologies/ansible-collection-monitoring.git
+[submodule "collections/ansible_collections/netfusion/routeros"]
+	path = collections/ansible_collections/netfusion/routeros
+	url = https://github.com/NetFusion-Technologies/ansible-collection-routeros.git

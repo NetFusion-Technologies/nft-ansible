@@ -71,7 +71,7 @@
       User={{ mktxp_user }}
       Group={{ mktxp_group }}
       WorkingDirectory={{ mktxp_home }}
-      ExecStart={{ mktxp_venv }}/bin/mktxp export --config {{ mktxp_conf_file }}
+      ExecStart={{ mktxp_venv }}/bin/mktxp --cfg-dir {{ mktxp_conf_dir }} export
       Restart=on-failure
       RestartSec=5
 

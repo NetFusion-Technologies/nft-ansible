@@ -1,18 +1,33 @@
 namespace: netfusion
 name: routeros
-version: 1.0.0
+version: 0.1.0
 readme: README.md
 authors:
-  - Alex Lynn
-description: NetFusion RouterOS and MKTXP automation collection
+  - awlynn
+description: >
+  Ansible collection for MikroTik RouterOS automation, including MKTXP exporter
+  bootstrap on RouterOS devices and MKTXP deployment on monitoring hosts.
 license:
   - MIT
 tags:
-  - routeros
   - mikrotik
+  - routeros
   - monitoring
-dependencies: {}
-repository: ""
-documentation: ""
-homepage: ""
-issues: ""
+  - prometheus
+  - grafana
+  - mktxp
+  - network
+dependencies:
+  community.routeros: ">=3.0.0"
+repository: https://github.com/netfusiontechnologies/nft-ansible
+documentation: https://github.com/netfusiontechnologies/nft-ansible
+homepage: https://github.com/netfusiontechnologies/nft-ansible
+issues: https://github.com/netfusiontechnologies/nft-ansible/issues
+build_ignore:
+  - .git
+  - .github
+  - .venv
+  - .venv-ansible
+  - tests/output
+  - tmp
+  - "*.retry"

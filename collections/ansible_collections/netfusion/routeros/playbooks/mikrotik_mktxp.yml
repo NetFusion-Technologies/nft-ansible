@@ -1,1 +1,10 @@
-../../../../../playbooks/mikrotik_mktxp.yml
+---
+- name: Example MikroTik MKTXP user deployment
+  hosts: network_switches
+  gather_facts: false
+
+  collections:
+    - netfusion.routeros
+
+  roles:
+    - mikrotik_mktxp_user

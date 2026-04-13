@@ -1,1 +1,11 @@
-../../../../../playbooks/nft_monitor_mktxp.yml
+---
+- name: Example MKTXP exporter deployment
+  hosts: nft-monitor
+  become: true
+  gather_facts: true
+
+  collections:
+    - netfusion.routeros
+
+  roles:
+    - mktxp_exporter

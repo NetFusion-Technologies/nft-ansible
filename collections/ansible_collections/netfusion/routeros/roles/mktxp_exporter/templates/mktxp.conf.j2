@@ -64,7 +64,8 @@ certificate = {{ mktxp_metrics.certificate }}
 container = {{ mktxp_metrics.container }}
 
 {% for host in groups[mktxp_router_group] | sort %}
-{% if hostvars[host].device_type | default('') == mktxp_device_type_match %}
+{% if hostvars[host].device_type | default('') == mktxp_device_type_match
+   and (hostvars[host].mktxp_enabled | default(true) | bool) %}
 [{{ host }}]
 hostname = {{ hostvars[host].mktxp_target | default(hostvars[host].ansible_host) }}
 {% if hostvars[host].mktxp_extra_labels is defined %}

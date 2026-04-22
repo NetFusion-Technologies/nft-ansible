@@ -1,0 +1,200 @@
+---
+- name: Bulk manage OPNsense Unbound .net host overrides
+  hosts: opnsense
+  gather_facts: false
+
+  vars:
+    unbound_host_var_name: "{{ target_host_var | default('unbound_net_hosts') }}"
+
+  tasks:
+    - name: Show selected host variable
+      delegate_to: localhost
+      debug:
+        msg:
+          - "Using variable: {{ unbound_host_var_name }}"
+          - "Host count: {{ lookup('vars', unbound_host_var_name) | length }}"
+
+    - name: Validate host input
+      delegate_to: localhost
+      assert:
+        that:
+          - item.hostname is defined
+          - item.domain is defined
+          - item.ipv4 is defined
+        fail_msg: "Each host requires hostname, domain, and ipv4"
+      loop: "{{ lookup('vars', unbound_host_var_name) }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }}"
+
+    - name: Query existing Unbound host overrides
+      delegate_to: localhost
+      uri:
+        url: "https://{{ ansible_host }}:{{ opnsense_api_port }}{{ unbound_api.search_endpoint }}"
+        method: POST
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        body_format: json
+        body:
+          current: 1
+          rowCount: 1000
+          sort: {}
+        timeout: 90
+      register: unbound_search
+
+    - name: Show search result count
+      delegate_to: localhost
+      debug:
+        msg: "{{ unbound_search.json.rows | default([]) | length }}"
+
+    - name: Initialize existing override map
+      delegate_to: localhost
+      set_fact:
+        unbound_existing_map: {}
+
+    - name: Build existing override map
+      delegate_to: localhost
+      set_fact:
+        unbound_existing_map: >-
+          {{
+            unbound_existing_map | combine({
+              ((item.hostname ~ '.' ~ item.domain ~ '|' ~ item.rr) | lower): item.uuid
+            })
+          }}
+      loop: "{{ unbound_search.json.rows | default([]) }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }} {{ item.rr | default('') }}"
+      when:
+        - item.uuid is defined
+        - item.hostname is defined
+        - item.domain is defined
+        - item.rr is defined
+
+    - name: Build desired record list
+      delegate_to: localhost
+      set_fact:
+        unbound_desired_records: "{{ (unbound_desired_records | default([])) + _records }}"
+      vars:
+        _records: >-
+          {{
+            [
+              {
+                'hostname': item.hostname,
+                'domain': item.domain,
+                'rr': 'A',
+                'server': item.ipv4,
+                'description': item.description | default(''),
+                'enabled': '1',
+                'addptr': '1'
+              }
+            ]
+            +
+            (
+              [
+                {
+                  'hostname': item.hostname,
+                  'domain': item.domain,
+                  'rr': 'AAAA',
+                  'server': item.ipv6,
+                  'description': item.description | default(''),
+                  'enabled': '1',
+                  'addptr': '1'
+                }
+              ]
+              if (item.ipv6 is defined and (item.ipv6 | string | length > 0))
+              else []
+            )
+          }}
+      loop: "{{ lookup('vars', unbound_host_var_name) }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }}"
+
+    - name: Create missing Unbound overrides
+      delegate_to: localhost
+      uri:
+        url: "https://{{ ansible_host }}:{{ opnsense_api_port }}{{ unbound_api.add_endpoint }}"
+        method: POST
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        body_format: json
+        body:
+          host:
+            tree: ""
+            enabled: "{{ item.enabled }}"
+            hostname: "{{ item.hostname }}"
+            domain: "{{ item.domain }}"
+            rr: "{{ item.rr }}"
+            mxprio: ""
+            mx: ""
+            server: "{{ item.server }}"
+            txtdata: ""
+            ttl: ""
+            addptr: "{{ item.addptr }}"
+            aliases: ""
+            description: "{{ item.description }}"
+        timeout: 90
+      loop: "{{ unbound_desired_records }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }} {{ item.rr }}"
+      when:
+        - ((item.hostname ~ '.' ~ item.domain ~ '|' ~ item.rr) | lower) not in (unbound_existing_map | default({}))
+      register: unbound_add
+
+    - name: Update existing Unbound overrides
+      delegate_to: localhost
+      uri:
+        url: >-
+          https://{{ ansible_host }}:{{ opnsense_api_port }}{{ unbound_api.set_endpoint }}{{
+          unbound_existing_map[((item.hostname ~ '.' ~ item.domain ~ '|' ~ item.rr) | lower)]
+          }}/
+        method: POST
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        body_format: json
+        body:
+          host:
+            tree: ""
+            enabled: "{{ item.enabled }}"
+            hostname: "{{ item.hostname }}"
+            domain: "{{ item.domain }}"
+            rr: "{{ item.rr }}"
+            mxprio: ""
+            mx: ""
+            server: "{{ item.server }}"
+            txtdata: ""
+            ttl: ""
+            addptr: "{{ item.addptr }}"
+            aliases: ""
+            description: "{{ item.description }}"
+        timeout: 90
+      loop: "{{ unbound_desired_records }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }} {{ item.rr }}"
+      when:
+        - ((item.hostname ~ '.' ~ item.domain ~ '|' ~ item.rr) | lower) in (unbound_existing_map | default({}))
+      register: unbound_set
+
+    - name: Reconfigure Unbound
+      delegate_to: localhost
+      uri:
+        url: "https://{{ ansible_host }}:{{ opnsense_api_port }}{{ unbound_api.reconfigure_endpoint }}"
+        method: POST
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        body_format: json
+        body: {}
+        timeout: 90
+      when: >
+        (unbound_add.results | default([]) | length > 0) or
+        (unbound_set.results | default([]) | length > 0)

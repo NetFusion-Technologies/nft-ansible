@@ -1,0 +1,241 @@
+---
+- name: Add-only batched bootstrap for OPNsense Unbound host overrides
+  hosts: opnsense
+  gather_facts: false
+
+  vars:
+    unbound_host_var_name: "{{ target_host_var | default('unbound_net_hosts') }}"
+    unbound_batch_size: "{{ batch_size | default(4) | int }}"
+    unbound_batch_pause_seconds: "{{ batch_pause_seconds | default(5) | int }}"
+    unbound_request_timeout: "{{ request_timeout | default(60) | int }}"
+
+  tasks:
+    - name: Resolve selected host list
+      delegate_to: localhost
+      set_fact:
+        unbound_selected_hosts: "{{ lookup('vars', unbound_host_var_name) }}"
+
+    - name: Validate selected host list exists
+      delegate_to: localhost
+      assert:
+        that:
+          - unbound_selected_hosts is defined
+          - unbound_selected_hosts | length > 0
+        fail_msg: "Selected host variable is empty or undefined: {{ unbound_host_var_name }}"
+
+    - name: Validate host input
+      delegate_to: localhost
+      assert:
+        that:
+          - item.hostname is defined
+          - item.domain is defined
+          - item.ipv4 is defined
+          - item.hostname | lower == item.hostname
+        fail_msg: "Each host requires lowercase hostname, domain, and ipv4"
+      loop: "{{ unbound_selected_hosts }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }}"
+
+    - name: Build desired record list
+      delegate_to: localhost
+      set_fact:
+        unbound_desired_records: "{{ (unbound_desired_records | default([])) + _records }}"
+      vars:
+        _records: >-
+          {{
+            [
+              {
+                'hostname': item.hostname,
+                'domain': item.domain,
+                'rr': 'A',
+                'server': item.ipv4,
+                'description': item.description | default(''),
+                'enabled': '1',
+                'addptr': '1'
+              }
+            ]
+            +
+            (
+              [
+                {
+                  'hostname': item.hostname,
+                  'domain': item.domain,
+                  'rr': 'AAAA',
+                  'server': item.ipv6,
+                  'description': item.description | default(''),
+                  'enabled': '1',
+                  'addptr': '1'
+                }
+              ]
+              if (item.ipv6 is defined and (item.ipv6 | string | length > 0))
+              else []
+            )
+          }}
+      loop: "{{ unbound_selected_hosts }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }}"
+
+    - name: Show import plan
+      delegate_to: localhost
+      debug:
+        msg:
+          - "Target variable: {{ unbound_host_var_name }}"
+          - "Hosts selected: {{ unbound_selected_hosts | length }}"
+          - "DNS records to add: {{ unbound_desired_records | length }}"
+          - "Batch size: {{ unbound_batch_size }}"
+          - "Pause between batches: {{ unbound_batch_pause_seconds }}s"
+          - "Request timeout: {{ unbound_request_timeout }}s"
+
+    - name: Write desired records to temporary JSON file
+      delegate_to: localhost
+      copy:
+        content: "{{ unbound_desired_records | to_json }}"
+        dest: /tmp/opnsense_unbound_desired_records.json
+        mode: "0600"
+
+    - name: Add records in batches with pause and reconfigure
+      delegate_to: localhost
+      shell: |
+        python3 - <<'PY'
+        import json
+        import ssl
+        import time
+        import base64
+        import urllib.request
+        import urllib.error
+        import sys
+
+        records_path = "/tmp/opnsense_unbound_desired_records.json"
+
+        with open(records_path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+
+        host = "{{ opnsense_api_host }}"
+        port = "{{ opnsense_api_port }}"
+        add_endpoint = "{{ unbound_api.add_endpoint }}"
+        reconfigure_endpoint = "{{ unbound_api.reconfigure_endpoint }}"
+        batch_size = int("{{ unbound_batch_size }}")
+        batch_pause = int("{{ unbound_batch_pause_seconds }}")
+        timeout = int("{{ unbound_request_timeout }}")
+
+        username = "{{ opnsense_api_key }}"
+        password = "{{ opnsense_api_secret }}"
+
+        auth = base64.b64encode(f"{username}:{password}".encode()).decode()
+
+        headers = {
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
+        context = ssl._create_unverified_context()
+
+        def post_json(url: str, payload: dict, timeout: int):
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, context=context, timeout=timeout) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+                return resp.status, body
+
+        def batched(seq, n):
+            for i in range(0, len(seq), n):
+                yield i // n + 1, seq[i:i+n]
+
+        total = len(records)
+        if total == 0:
+            print("No records to add.")
+            sys.exit(0)
+
+        add_url = f"https://{host}:{port}{add_endpoint}"
+        reconfigure_url = f"https://{host}:{port}{reconfigure_endpoint}"
+
+        print(f"Starting add-only batched import: {total} record(s), batch size {batch_size}")
+
+        processed = 0
+
+        for batch_num, batch in batched(records, batch_size):
+            print(f"\n=== Batch {batch_num} ({len(batch)} record(s)) ===")
+
+            for rec in batch:
+                payload = {
+                    "host": {
+                        "tree": "",
+                        "enabled": rec["enabled"],
+                        "hostname": rec["hostname"],
+                        "domain": rec["domain"],
+                        "rr": rec["rr"],
+                        "mxprio": "",
+                        "mx": "",
+                        "server": rec["server"],
+                        "txtdata": "",
+                        "ttl": "",
+                        "addptr": rec["addptr"],
+                        "aliases": "",
+                        "description": rec["description"],
+                    }
+                }
+
+                label = f'{rec["hostname"]}.{rec["domain"]} {rec["rr"]} -> {rec["server"]}'
+                try:
+                    status, body = post_json(add_url, payload, timeout)
+                    if status != 200:
+                        print(f"ERROR add failed: {label}")
+                        print(f"HTTP status: {status}")
+                        print(body)
+                        sys.exit(1)
+                    print(f"ADD OK: {label}")
+                    processed += 1
+                except urllib.error.HTTPError as e:
+                    body = e.read().decode("utf-8", errors="replace")
+                    print(f"HTTP ERROR add failed: {label}")
+                    print(f"HTTP status: {e.code}")
+                    print(body)
+                    sys.exit(1)
+                except Exception as e:
+                    print(f"EXCEPTION add failed: {label}")
+                    print(str(e))
+                    sys.exit(1)
+
+            try:
+                status, body = post_json(reconfigure_url, {}, timeout)
+                if status != 200:
+                    print(f"ERROR reconfigure failed after batch {batch_num}")
+                    print(f"HTTP status: {status}")
+                    print(body)
+                    sys.exit(1)
+                print(f"RECONFIGURE OK after batch {batch_num}")
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8", errors="replace")
+                print(f"HTTP ERROR reconfigure failed after batch {batch_num}")
+                print(f"HTTP status: {e.code}")
+                print(body)
+                sys.exit(1)
+            except Exception as e:
+                print(f"EXCEPTION reconfigure failed after batch {batch_num}")
+                print(str(e))
+                sys.exit(1)
+
+            remaining = total - processed
+            if remaining > 0 and batch_pause > 0:
+                print(f"Sleeping {batch_pause}s before next batch...")
+                time.sleep(batch_pause)
+
+        print(f"\nCompleted successfully: {processed} record(s) added.")
+        PY
+      args:
+        executable: /bin/bash
+      register: unbound_batch_run
+      changed_when: true
+
+    - name: Show batch run output
+      delegate_to: localhost
+      debug:
+        var: unbound_batch_run.stdout_lines
+
+    - name: Remove temporary JSON file
+      delegate_to: localhost
+      file:
+        path: /tmp/opnsense_unbound_desired_records.json
+        state: absent
+

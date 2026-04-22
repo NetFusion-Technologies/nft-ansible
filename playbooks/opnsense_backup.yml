@@ -1,0 +1,37 @@
+---
+- name: Backup OPNsense config
+  hosts: opnsense
+  gather_facts: false
+
+  vars:
+    backup_dir: "{{ playbook_dir | dirname }}/backups/opnsense"
+
+    opnsense_api_port: 2443
+    opnsense_backup_host: "this"
+
+  tasks:
+    - name: Ensure backup directory exists
+      delegate_to: localhost
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download OPNsense config
+      delegate_to: localhost
+      uri:
+        url: "https://{{ ansible_host }}:{{ opnsense_api_port }}/api/core/backup/download/{{ opnsense_backup_host }}"
+        method: GET
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        timeout: 90
+      register: backup_data
+
+    - name: Save config to file
+      delegate_to: localhost
+      copy:
+        content: "{{ backup_data.content }}"
+        dest: "{{ backup_dir }}/config-{{ inventory_hostname }}-{{ lookup('pipe','date +%Y%m%d-%H%M%S') }}.xml"

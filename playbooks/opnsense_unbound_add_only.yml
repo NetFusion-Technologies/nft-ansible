@@ -1,0 +1,139 @@
+---
+- name: Add-only OPNsense Unbound host overrides
+  hosts: opnsense
+  gather_facts: false
+
+  vars:
+    unbound_host_var_name: "{{ target_host_var | default('unbound_net_hosts') }}"
+    unbound_request_timeout: "{{ request_timeout | default(60) | int }}"
+
+  tasks:
+    - name: Resolve selected host list
+      delegate_to: localhost
+      set_fact:
+        unbound_selected_hosts: "{{ lookup('vars', unbound_host_var_name) }}"
+
+    - name: Validate selected host list exists
+      delegate_to: localhost
+      assert:
+        that:
+          - unbound_selected_hosts is defined
+          - unbound_selected_hosts | length > 0
+        fail_msg: "Selected host variable is empty or undefined: {{ unbound_host_var_name }}"
+
+    - name: Validate host input
+      delegate_to: localhost
+      assert:
+        that:
+          - item.hostname is defined
+          - item.domain is defined
+          - item.ipv4 is defined
+          - item.hostname | lower == item.hostname
+        fail_msg: "Each host requires lowercase hostname, domain, and ipv4"
+      loop: "{{ unbound_selected_hosts }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }}"
+
+    - name: Build desired record list
+      delegate_to: localhost
+      set_fact:
+        unbound_desired_records: "{{ (unbound_desired_records | default([])) + _records }}"
+      vars:
+        _records: >-
+          {{
+            [
+              {
+                'hostname': item.hostname,
+                'domain': item.domain,
+                'rr': 'A',
+                'server': item.ipv4,
+                'description': item.description | default(''),
+                'enabled': '1',
+                'addptr': '1'
+              }
+            ]
+            +
+            (
+              [
+                {
+                  'hostname': item.hostname,
+                  'domain': item.domain,
+                  'rr': 'AAAA',
+                  'server': item.ipv6,
+                  'description': item.description | default(''),
+                  'enabled': '1',
+                  'addptr': '1'
+                }
+              ]
+              if (item.ipv6 is defined and (item.ipv6 | string | length > 0))
+              else []
+            )
+          }}
+      loop: "{{ unbound_selected_hosts }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }}"
+
+    - name: Show import plan
+      delegate_to: localhost
+      debug:
+        msg:
+          - "Target variable: {{ unbound_host_var_name }}"
+          - "Hosts selected: {{ unbound_selected_hosts | length }}"
+          - "DNS records to add: {{ unbound_desired_records | length }}"
+          - "API host: {{ ansible_host }}"
+          - "Timeout: {{ unbound_request_timeout }}s"
+
+    - name: Add records
+      delegate_to: localhost
+      uri:
+        url: "https://{{ ansible_host }}:{{ opnsense_api_port }}{{ unbound_api.add_endpoint }}"
+        method: POST
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        body_format: json
+        body:
+          host:
+            tree: ""
+            enabled: "{{ item.enabled }}"
+            hostname: "{{ item.hostname }}"
+            domain: "{{ item.domain }}"
+            rr: "{{ item.rr }}"
+            mxprio: ""
+            mx: ""
+            server: "{{ item.server }}"
+            txtdata: ""
+            ttl: ""
+            addptr: "{{ item.addptr }}"
+            aliases: ""
+            description: "{{ item.description }}"
+        timeout: "{{ unbound_request_timeout }}"
+        status_code: 200
+      loop: "{{ unbound_desired_records }}"
+      loop_control:
+        label: "{{ item.hostname }}.{{ item.domain }} {{ item.rr }}"
+      register: unbound_add
+
+    - name: Reconfigure Unbound
+      delegate_to: localhost
+      uri:
+        url: "https://{{ ansible_host }}:{{ opnsense_api_port }}{{ unbound_api.reconfigure_endpoint }}"
+        method: POST
+        user: "{{ opnsense_api_key }}"
+        password: "{{ opnsense_api_secret }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        body_format: json
+        body: {}
+        timeout: "{{ unbound_request_timeout }}"
+        status_code: 200
+
+    - name: Show add summary
+      delegate_to: localhost
+      debug:
+        msg:
+          - "API calls completed: {{ unbound_add.results | default([]) | length }}"
+

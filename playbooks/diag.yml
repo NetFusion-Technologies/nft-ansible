@@ -1,0 +1,59 @@
+---
+- name: Debug OPNsense curl context
+  hosts: opnsense
+  gather_facts: false
+
+  tasks:
+    - name: Show hostname resolution
+      delegate_to: localhost
+      command: getent hosts opnsense.netfusiontechnologies.xyz
+      register: getent_out
+      changed_when: false
+
+    - name: Show resolution output
+      delegate_to: localhost
+      debug:
+        var: getent_out.stdout
+
+    - name: Test GUI reachability without auth
+      delegate_to: localhost
+      command:
+        argv:
+          - curl
+          - -ksS
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}\n"
+          - https://opnsense.netfusiontechnologies.xyz:2443/
+      register: curl_gui
+      changed_when: false
+
+    - name: Show GUI curl result
+      delegate_to: localhost
+      debug:
+        var: curl_gui
+
+    - name: Test API search with env vars
+      delegate_to: localhost
+      shell: |
+        export OPNSENSE_API_KEY='{{ opnsense_api_key }}'
+        export OPNSENSE_API_SECRET='{{ opnsense_api_secret }}'
+        curl -ksS \
+          -u "$OPNSENSE_API_KEY:$OPNSENSE_API_SECRET" \
+          -H 'Content-Type: application/json' \
+          -X POST \
+          'https://opnsense.netfusiontechnologies.xyz:2443/api/unbound/settings/search_host_override/' \
+          --data '{"current":"1","rowCount":"10","sort":{}}'
+      register: curl_api
+      changed_when: false
+      no_log: false
+
+    - name: Show API curl rc
+      delegate_to: localhost
+      debug:
+        msg:
+          - "rc={{ curl_api.rc }}"
+          - "stdout_len={{ curl_api.stdout | length }}"
+          - "stderr={{ curl_api.stderr }}"
+
